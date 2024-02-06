@@ -1,27 +1,26 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const glfw = @import("mach_glfw");
-const gpu = @import("mach_gpu");
+//const gpu = @import("mach_gpu");
+const gpu = @import("mach_sysgpu");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
 
-    const mach_gpu_dep = b.dependency("mach_gpu", .{
+    //const mach_gpu_dep = b.dependency("mach_gpu", .{
+    //    .target = target,
+    //    .optimize = optimize,
+    //});
+    const sysgpu_dep = b.dependency("mach_sysgpu", .{
         .target = target,
         .optimize = optimize,
     });
-    // TODO(sysgpu): re-enable, see https://github.com/hexops/mach/issues/1144
-    // const sysgpu_dep = b.dependency("mach_sysgpu", .{
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
     const module = b.addModule("mach-core", .{
         .root_source_file = .{ .path = "src/main.zig" },
         .imports = &.{
-            .{ .name = "mach-gpu", .module = mach_gpu_dep.module("mach-gpu") },
-            // TODO(sysgpu): re-enable, see https://github.com/hexops/mach/issues/1144
-            // .{ .name = "mach-sysgpu", .module = sysgpu_dep.module("mach-sysgpu") },
+            //.{ .name = "mach-gpu", .module = mach_gpu_dep.module("mach-gpu") },
+            .{ .name = "mach-sysgpu", .module = sysgpu_dep.module("mach-sysgpu") },
         },
     });
 
@@ -53,7 +52,7 @@ pub fn build(b: *std.Build) !void {
         while (iter.next()) |e| {
             main_tests.root_module.addImport(e.key_ptr.*, e.value_ptr.*);
         }
-        link(b, main_tests, &main_tests.root_module);
+        //link(b, main_tests, &main_tests.root_module);
         b.installArtifact(main_tests);
 
         const test_step = b.step("test", "run tests");
@@ -104,7 +103,7 @@ pub const App = struct {
 
     pub fn init(
         app_builder: *std.Build,
-        core_builder: *std.Build,
+        _: *std.Build,
         options: struct {
             name: []const u8,
             src: []const u8,
@@ -160,7 +159,7 @@ pub const App = struct {
                     .optimize = options.optimize,
                 });
                 // TODO(core): figure out why we need to disable LTO: https://github.com/hexops/mach/issues/597
-                exe.want_lto = false;
+                //exe.want_lto = false;
                 break :blk exe;
             }
         };
@@ -195,7 +194,7 @@ pub const App = struct {
 
         // Link dependencies
         if (platform != .web) {
-            link(core_builder, compile, &compile.root_module);
+            //link(core_builder, compile, &compile.root_module);
         }
 
         const run = app_builder.addRunArtifact(compile);
@@ -218,11 +217,4 @@ pub fn link(core_builder: *std.Build, step: *std.Build.Step.Compile, mod: *std.B
         .target = step.root_module.resolved_target orelse core_builder.host,
         .optimize = step.root_module.optimize.?,
     }).builder, step, mod, .{}) catch unreachable;
-}
-
-comptime {
-    const supported_zig = std.SemanticVersion.parse("0.12.0-dev.2063+804cee3b9") catch unreachable;
-    if (builtin.zig_version.order(supported_zig) != .eq) {
-        @compileError(std.fmt.comptimePrint("unsupported Zig version ({}). Required Zig version 2024.1.0-mach: https://machengine.org/about/nominated-zig/#202410-mach", .{builtin.zig_version}));
-    }
 }
